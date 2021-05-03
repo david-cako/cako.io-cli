@@ -22,3 +22,7 @@ cako -outDir ./archive/ -skipExisting
 ```
 
 After archiving, run with `-serve` to start a local server for the given output directory.
+
+```
+cako -outDir ./archive/ -serve
+```
