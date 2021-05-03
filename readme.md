@@ -1,5 +1,5 @@
 # cako.io cli
-A command line interface for archiving and locally serving pages from cako.io.
+A command line interface for archiving and serving pages from cako.io.
 
 ## Usage:
 ```
