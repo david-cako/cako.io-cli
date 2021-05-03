@@ -18,7 +18,7 @@ A command line interface for archiving and serving pages from cako.io.
 ## Example:
 
 ```
-cako -skipExisting # skips posts that have already been downloaded
+cako -skipExisting
 ```
 
 After archiving, run with `-serve` to start a local server for the given output directory.
