@@ -119,12 +119,19 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 		OnResponse(r)
 	})
 
-	// this is a css import that we need to manually visit
 	if !skipAssets {
+		// this is a css import that we need to manually visit
 		globalCss := CAKO_IO_URL + "assets/css/global.css"
 
 		if !skipExisting || !Exists(globalCss) {
-			c.Visit(CAKO_IO_URL + "assets/css/global.css")
+			c.Visit(globalCss)
+		}
+
+		// dark.css not included by default
+		darkCss := CAKO_IO_URL + "assets/css/dark.css"
+
+		if !skipExisting || !Exists(darkCss) {
+			c.Visit(darkCss)
 		}
 	}
 
