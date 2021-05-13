@@ -119,19 +119,31 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 		OnResponse(r)
 	})
 
+	// imports we need to manually visit
 	if !skipAssets {
-		// this is a css import that we need to manually visit
 		globalCss := CAKO_IO_URL + "assets/css/global.css"
-
 		if !skipExisting || !Exists(globalCss) {
 			c.Visit(globalCss)
 		}
 
-		// dark.css not included by default
 		darkCss := CAKO_IO_URL + "assets/css/dark.css"
-
 		if !skipExisting || !Exists(darkCss) {
 			c.Visit(darkCss)
+		}
+
+		spinJs := CAKO_IO_URL + "assets/js/spin.js"
+		if !skipExisting || !Exists(spinJs) {
+			c.Visit(spinJs)
+		}
+
+		favicon := CAKO_IO_URL + "favicon.png"
+		if !skipExisting || !Exists(favicon) {
+			c.Visit(favicon)
+		}
+
+		appleTouchIcon := CAKO_IO_URL + "apple-touch-icon.png"
+		if !skipExisting || !Exists(appleTouchIcon) {
+			c.Visit(appleTouchIcon)
 		}
 	}
 
