@@ -11,6 +11,26 @@ import (
 	"github.com/gocolly/colly/v2"
 )
 
+var STATIC_PATHS []string = []string{
+	"assets/css/global.css",
+	"assets/css/dark.css",
+	"assets/js/spin.js",
+	"assets/menu-outline.svg",
+	"assets/js/ionicons/ionicons.esm.js",
+	"assets/js/ionicons/ionicons.js",
+	"assets/js/ionicons/p-3f680f7e.js",
+	"assets/js/ionicons/p-5c60b45e.js",
+	"assets/js/ionicons/p-e26ac56f.js",
+	"assets/js/ionicons/svg/bulb-outline.svg",
+	"assets/js/ionicons/svg/close-circle-outline.svg",
+	"assets/js/ionicons/svg/menu-outline.svg",
+	"assets/js/ionicons/svg/search-outline.svg",
+	"assets/js/ionicons/svg/star-outline.svg",
+	"assets/fonts/Lato-Light.ttf",
+	"favicon.png",
+	"apple-touch-icon.png",
+}
+
 // Check if local file exists based on full web URL
 func Exists(uri string) bool {
 	u, err := url.Parse(uri)
@@ -31,7 +51,7 @@ func Exists(uri string) bool {
 func OnResponse(r *colly.Response) {
 	var dest string
 
-	if r.Request.URL.Path == "/" {
+	if r.Request.URL.Path == "/" || r.Request.URL.Path == "/all/" {
 		dest = "index.html"
 	} else {
 		dest = strings.Trim(r.Request.URL.Path, "/")
@@ -58,7 +78,7 @@ If skipExisting, pages and assets already in outDir will be skipped.
 If skipAssets, CSS, JS, and media assets will not be saved.
 */
 func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
-	pageCnt := 0
+	postCnt := 0
 	skipCnt := 0
 
 	_, err := os.Stat(outDir)
@@ -76,10 +96,27 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 	}
 
 	c := colly.NewCollector()
+	c.OnResponse(func(r *colly.Response) {
+		OnResponse(r)
+	})
+
+	// paths we need to manually visit
+	if !skipAssets {
+		for _, path := range STATIC_PATHS {
+			uri := CAKO_IO_URL + path
+			if !Exists(uri) || !skipExisting {
+				c.Visit(uri)
+			}
+		}
+	}
+
+	if page == CAKO_IO_URL+"all/" {
+		c.Visit(CAKO_IO_URL + "features/")
+	}
 
 	c.OnHTML(".cako-post-link", func(e *colly.HTMLElement) {
-		pageCnt++
-		if !skipExisting || !Exists(e.Attr("href")) {
+		postCnt++
+		if !Exists(e.Attr("href")) || !skipExisting {
 			e.Request.Visit(e.Attr("href"))
 		} else {
 			skipCnt++
@@ -90,70 +127,34 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 		c.OnHTML("link[rel]", func(e *colly.HTMLElement) {
 			rel := e.Attr("rel")
 			if rel == "stylesheet" {
-				if !skipExisting || !Exists(e.Attr("href")) {
+				if !Exists(e.Attr("href")) || !skipExisting {
 					e.Request.Visit(e.Attr(("href")))
 				}
 			}
 		})
 
 		c.OnHTML("script", func(e *colly.HTMLElement) {
-			if !skipExisting || !Exists(e.Attr(("src"))) {
+			if !Exists(e.Attr(("src"))) || !skipExisting {
 				e.Request.Visit(e.Attr(("src")))
 			}
 		})
 
 		c.OnHTML("img", func(e *colly.HTMLElement) {
-			if !skipExisting || !Exists(e.Attr(("src"))) {
+			if !Exists(e.Attr(("src"))) || !skipExisting {
 				e.Request.Visit(e.Attr(("src")))
 			}
 		})
 
 		c.OnHTML("audio", func(e *colly.HTMLElement) {
-			if !skipExisting || !Exists(e.Attr(("src"))) {
+			if !Exists(e.Attr(("src"))) || !skipExisting {
 				e.Request.Visit(e.Attr(("src")))
 			}
 		})
 	}
 
-	c.OnResponse(func(r *colly.Response) {
-		OnResponse(r)
-	})
-
-	// imports we need to manually visit
-	if !skipAssets {
-		globalCss := CAKO_IO_URL + "assets/css/global.css"
-		if !skipExisting || !Exists(globalCss) {
-			c.Visit(globalCss)
-		}
-
-		darkCss := CAKO_IO_URL + "assets/css/dark.css"
-		if !skipExisting || !Exists(darkCss) {
-			c.Visit(darkCss)
-		}
-
-		spinJs := CAKO_IO_URL + "assets/js/spin.js"
-		if !skipExisting || !Exists(spinJs) {
-			c.Visit(spinJs)
-		}
-
-		favicon := CAKO_IO_URL + "favicon.png"
-		if !skipExisting || !Exists(favicon) {
-			c.Visit(favicon)
-		}
-
-		appleTouchIcon := CAKO_IO_URL + "apple-touch-icon.png"
-		if !skipExisting || !Exists(appleTouchIcon) {
-			c.Visit(appleTouchIcon)
-		}
-	}
-
 	c.Visit(page)
 
-	summary := fmt.Sprintf("%d pages found", pageCnt)
-
-	if skipExisting {
-		summary += fmt.Sprintf(", %d skipped", skipCnt)
-	}
+	summary := fmt.Sprintf("%d posts found, %d saved", postCnt, postCnt-skipCnt)
 
 	fmt.Println(summary)
 }

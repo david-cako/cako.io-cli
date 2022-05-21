@@ -1,4 +1,4 @@
-module cako.io/cli
+module cako.io/cako
 
 go 1.16
 

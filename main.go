@@ -20,7 +20,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: \n")
 		flag.PrintDefaults()
 	}
-	page := flag.String("page", "", "Crawl specified page name only")
+	page := flag.String("page", "all/", "Crawl specified page name only")
 	outDir := flag.String("outDir", "./saved/", "Output directory to save files")
 	skipExisting := flag.Bool("skipExisting", false, "Skip crawling pages already in output directory")
 	skipAssets := flag.Bool("skipAssets", false, "Only crawl html files")
@@ -34,9 +34,5 @@ func main() {
 		log.Fatal(http.ListenAndServe(":8080", nil))
 	}
 
-	if *page != "" {
-		Crawl(CAKO_IO_URL+*page, *outDir, *skipExisting, *skipAssets)
-	} else {
-		Crawl(CAKO_IO_URL, *outDir, *skipExisting, *skipAssets)
-	}
+	Crawl(CAKO_IO_URL+*page, *outDir, *skipExisting, *skipAssets)
 }
