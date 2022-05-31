@@ -114,7 +114,7 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 		c.Visit(CAKO_IO_URL + "features/")
 	}
 
-	c.OnHTML(".cako-post-link", func(e *colly.HTMLElement) {
+	c.OnHTML("#cako-post-feed .cako-post-link", func(e *colly.HTMLElement) {
 		postCnt++
 		if !Exists(e.Attr("href")) || !skipExisting {
 			e.Request.Visit(e.Attr("href"))
