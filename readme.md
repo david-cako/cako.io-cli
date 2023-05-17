@@ -7,6 +7,8 @@ A command line interface for archiving and serving pages from cako.io.
         Output directory to save files (default "./saved/")
   -page string
         Crawl specified page name only
+  -password string
+    	  Password for private site access
   -serve
         Serve locally saved files
   -skipAssets
