@@ -75,9 +75,9 @@ func OnResponse(r *colly.Response) {
 	fmt.Printf("Saved: %s\n", dest)
 }
 
+// Returns true if home page redirects to login.
 func IsPrivate() (bool, error) {
 	client := http.Client{
-		/* Keep 302 response so we can extract express session cookie */
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -100,7 +100,7 @@ func IsPrivate() (bool, error) {
 	return false, nil
 }
 
-/* Lol */
+// Lol
 func Login(collector *colly.Collector, password string) error {
 	loginUrl := CAKO_IO_URL + "private/"
 	expressCookieName := "express:sess"
