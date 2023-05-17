@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -51,6 +52,15 @@ func Exists(uri string) bool {
 	return false
 }
 
+func ReplaceContentUrls(postBody []byte) []byte {
+	s := string(postBody)
+
+	s = strings.ReplaceAll(s, "https://cako.io/content", "/content")
+	s = strings.ReplaceAll(s, "http://cako.io/content", "/content")
+
+	return []byte(s)
+}
+
 func OnResponse(r *colly.Response) {
 	var dest string
 
@@ -71,7 +81,10 @@ func OnResponse(r *colly.Response) {
 		}
 	}
 
-	r.Save(dest)
+	body := ReplaceContentUrls(r.Body)
+
+	ioutil.WriteFile(dest, body, 0644)
+
 	fmt.Printf("Saved: %s\n", dest)
 }
 
