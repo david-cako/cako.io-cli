@@ -17,5 +17,5 @@ GOOS=linux GOARCH=arm64 go build -o build/cako.io-cli-linux-arm64
 echo "Building cako.io-cli-windows-amd64.exe"
 GOOS=windows GOARCH=amd64 go build -o build/cako.io-cli-windows-amd64.exe
 
-echo "Building cako.io-cli-windows-386.exe"
-GOOS=windows GOARCH=386 go build -o build/cako.io-cli-windows-386.exe
+echo "Building cako.io-cli-windows-arm64.exe"
+GOOS=windows GOARCH=arm64 go build -o build/cako.io-cli-windows-arm64.exe
