@@ -22,6 +22,7 @@ func main() {
 	}
 	page := flag.String("page", "all/", "Crawl specified page name only")
 	outDir := flag.String("outDir", "./saved/", "Output directory to save files")
+	password := flag.String("password", "", "Password for private site access")
 	skipExisting := flag.Bool("skipExisting", false, "Skip crawling pages already in output directory")
 	skipAssets := flag.Bool("skipAssets", false, "Only crawl html files")
 	serve := flag.Bool("serve", false, "Serve locally saved files")
@@ -34,5 +35,5 @@ func main() {
 		log.Fatal(http.ListenAndServe(":8080", nil))
 	}
 
-	Crawl(CAKO_IO_URL+*page, *outDir, *skipExisting, *skipAssets)
+	Crawl(CAKO_IO_URL+*page, *outDir, *password, *skipExisting, *skipAssets)
 }

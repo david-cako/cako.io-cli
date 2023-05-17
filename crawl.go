@@ -1,12 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/gocolly/colly/v2"
 )
@@ -72,12 +75,100 @@ func OnResponse(r *colly.Response) {
 	fmt.Printf("Saved: %s\n", dest)
 }
 
-/* Crawl site starting from specified page and save files to outDir.
+func IsPrivate() (bool, error) {
+	client := http.Client{
+		/* Keep 302 response so we can extract express session cookie */
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	r, err := client.Get(CAKO_IO_URL)
+	if err != nil {
+		return false, err
+	}
+
+	loc, err := r.Location()
+	if err != nil {
+		return false, err
+	}
+
+	if r.StatusCode == http.StatusFound && strings.Contains(loc.Path, "private") {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+/* Lol */
+func Login(collector *colly.Collector, password string) error {
+	loginUrl := CAKO_IO_URL + "private/"
+	expressCookieName := "express:sess"
+
+	client := http.Client{
+		/* Keep 302 response so we can extract express session cookie */
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	params := url.Values{}
+	params.Add("password", password)
+
+	req, err := http.NewRequest("POST", loginUrl, strings.NewReader(params.Encode()))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	r, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	setCookie := r.Header.Get("Set-Cookie")
+
+	if !strings.Contains(setCookie, expressCookieName) {
+		return fmt.Errorf("Login failed.")
+	}
+
+	/* The express session cookie does not work automatically with
+	the default cookie jar implementation.  This may be due to
+	the cookie name or the httponly flag. */
+
+	cookieStr := strings.Split(setCookie, ";")
+
+	cookie := &http.Cookie{
+		Name: expressCookieName,
+		Path: "/",
+	}
+
+	for _, c := range cookieStr {
+		strs := strings.Split(c, "=")
+		if strs[0] == expressCookieName {
+			cookie.Value = strs[1]
+		} else if strs[0] == "expires" {
+			t, err := time.Parse(time.RFC1123, strs[1])
+			if err != nil {
+				cookie.Expires = t
+			}
+		}
+	}
+
+	collector.SetCookies(CAKO_IO_URL, []*http.Cookie{cookie})
+
+	return nil
+}
+
+/*
+Crawl site starting from specified page and save files to outDir,
+optionally using password authentication.
 
 If skipExisting, pages and assets already in outDir will be skipped.
 If skipAssets, CSS, JS, and media assets will not be saved.
 */
-func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
+func Crawl(page string, outDir string, password string, skipExisting bool, skipAssets bool) {
 	postCnt := 0
 	skipCnt := 0
 
@@ -96,6 +187,25 @@ func Crawl(page string, outDir string, skipExisting bool, skipAssets bool) {
 	}
 
 	c := colly.NewCollector()
+
+	private, err := IsPrivate()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if private {
+		if password == "" {
+			flag.Usage()
+			fmt.Print("\n")
+			log.Fatal("Site is private and no password provided.\n")
+		} else {
+			err := Login(c, password)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
 	c.OnResponse(func(r *colly.Response) {
 		OnResponse(r)
 	})
