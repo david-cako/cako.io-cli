@@ -30,13 +30,15 @@ cako -serve
 ```
 
 ## Installation:
-- Download the latest [Release](https://github.com/david-cako/cako.io-cli/releases)
-- `sudo install -o root -g wheel -m 755 cako.io-cli-darwin-arm64 /usr/local/bin/cako`
+Download the latest [Release](https://github.com/david-cako/cako.io-cli/releases) and install.
+```
+sudo install -o root -g wheel -m 755 cako.io-cli-darwin-arm64 /usr/local/bin/cako
+```
 
 ### Enabling binary execution on macOS:
 
 When you run a compiled binary from the Releases page, you may see an error that "Apple cannot check for malicious software".  Run this command to allow it through Gatekeeper.
 
 ```
-xattr -d com.apple.quarantine /usr/local/bin/cako
+sudo xattr -d com.apple.quarantine /usr/local/bin/cako
 ```
