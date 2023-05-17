@@ -268,6 +268,12 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 			}
 		})
 
+		c.OnHTML("source", func(e *colly.HTMLElement) {
+			if !Exists(e.Attr(("src"))) || !skipExisting {
+				e.Request.Visit(e.Attr(("src")))
+			}
+		})
+
 		c.OnHTML("audio", func(e *colly.HTMLElement) {
 			if !Exists(e.Attr(("src"))) || !skipExisting {
 				e.Request.Visit(e.Attr(("src")))
