@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gocolly/colly/v2"
 )
@@ -81,7 +82,11 @@ func OnResponse(r *colly.Response) {
 		}
 	}
 
-	body := ReplaceContentUrls(r.Body)
+	body := r.Body
+
+	if utf8.Valid(r.Body) {
+		body = ReplaceContentUrls(r.Body)
+	}
 
 	ioutil.WriteFile(dest, body, 0644)
 
@@ -199,7 +204,8 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 		panic("Error changing to output directory.")
 	}
 
-	c := colly.NewCollector()
+	c := colly.NewCollector(colly.Async(true), colly.MaxBodySize(100*1024*1024))
+	c.Limit(&colly.LimitRule{DomainGlob: "*", Parallelism: 10})
 
 	private, err := IsPrivate()
 	if err != nil {
@@ -282,6 +288,7 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	}
 
 	c.Visit(page)
+	c.Wait()
 
 	summary := fmt.Sprintf("%d posts found, %d saved", postCnt, postCnt-skipCnt)
 
