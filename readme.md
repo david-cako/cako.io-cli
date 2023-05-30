@@ -20,13 +20,13 @@ A command line interface for archiving and serving pages from cako.io.
 ## Example:
 
 ```
-cako -skipExisting
+cako -outDir cako.io-archive
 ```
 
 After archiving, run with `-serve` to start a local server for the given output directory.
 
 ```
-cako -serve
+cako -serve -outDir cako.io-archive
 ```
 
 ## Installation:
