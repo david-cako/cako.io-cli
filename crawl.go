@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -32,8 +33,8 @@ var STATIC_PATHS []string = []string{
 	"assets/js/ionicons/svg/search-outline.svg",
 	"assets/js/ionicons/svg/star-outline.svg",
 	"assets/fonts/Lato-Light.ttf",
+	"assets/apple-touch-icon.png",
 	"favicon.png",
-	"apple-touch-icon.png",
 }
 
 // Check if local file exists based on full web URL
@@ -190,6 +191,9 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	postCnt := 0
 	skipCnt := 0
 
+	const retries = 5
+	attempts := sync.Map{}
+
 	_, err := os.Stat(outDir)
 	if os.IsNotExist(err) {
 		err = os.Mkdir(outDir, os.FileMode(0770))
@@ -205,6 +209,7 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	}
 
 	c := colly.NewCollector(colly.Async(true), colly.MaxBodySize(100*1024*1024))
+	c.SetRequestTimeout(10*time.Minute)
 	c.Limit(&colly.LimitRule{DomainGlob: "*", Parallelism: 10})
 
 	private, err := IsPrivate()
@@ -227,6 +232,23 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 
 	c.OnResponse(func(r *colly.Response) {
 		OnResponse(r)
+	})
+
+	c.OnError(func(r *colly.Response, e error) {
+		url := r.Request.URL.String()
+
+		log.Printf("Error fetching: %v, %v", url, e)
+
+		if r.StatusCode != 200 {
+			v, _ := attempts.LoadOrStore(url, 0)
+
+			cnt := v.(int)
+			if cnt < retries {
+				attempts.Store(url, cnt+1)
+				log.Printf("Retry %v/%v: %v", cnt+1, retries, url)
+				r.Request.Retry()
+			}
+		}
 	})
 
 	// paths we need to manually visit
