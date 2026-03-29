@@ -3,30 +3,27 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
-	"path"
-	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gocolly/colly/v2"
 )
+
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
 
 var STATIC_PATHS []string = []string{
 	"assets/css/global.css",
 	"assets/css/dark.css",
 	"assets/js/spin.js",
 	"assets/menu-outline.svg",
+	"assets/js/ionicons/index.esm.js",
 	"assets/js/ionicons/ionicons.esm.js",
-	"assets/js/ionicons/ionicons.js",
-	"assets/js/ionicons/p-3f680f7e.js",
-	"assets/js/ionicons/p-5c60b45e.js",
-	"assets/js/ionicons/p-e26ac56f.js",
+	"assets/js/ionicons/p-7a41fcdf.entry.js",
+	"assets/js/ionicons/p-BKJPfAGl.js",
+	"assets/js/ionicons/p-DQuL1Twl.js",
+	"assets/js/ionicons/p-Z3yp5Yym.js",
 	"assets/js/ionicons/svg/bulb-outline.svg",
 	"assets/js/ionicons/svg/close-circle-outline.svg",
 	"assets/js/ionicons/svg/menu-outline.svg",
@@ -37,148 +34,14 @@ var STATIC_PATHS []string = []string{
 	"favicon.png",
 }
 
-// Check if local file exists based on full web URL
-func Exists(uri string) bool {
-	u, err := url.Parse(uri)
-	if err != nil {
-		panic("Error parsing url.")
-	}
+var postCnt = 0
+var skipCnt = 0
 
-	path := strings.Trim(u.Path, "/")
+var linkCnt = 0
+var linkErrCnt = 0
+var linkErrs = []error{}
 
-	_, err = os.Stat(path)
-	if !os.IsNotExist(err) {
-		return true
-	}
-
-	return false
-}
-
-func ReplaceContentUrls(postBody []byte) []byte {
-	s := string(postBody)
-
-	s = strings.ReplaceAll(s, "https://cako.io/content", "/content")
-	s = strings.ReplaceAll(s, "http://cako.io/content", "/content")
-
-	return []byte(s)
-}
-
-func OnResponse(r *colly.Response) {
-	var dest string
-
-	if r.Request.URL.Path == "/" || r.Request.URL.Path == "/all/" {
-		dest = "index.html"
-	} else {
-		dest = strings.Trim(r.Request.URL.Path, "/")
-	}
-
-	if dest != path.Base(dest) {
-		destDir := path.Dir(dest)
-		_, err := os.Stat(destDir)
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(destDir, os.FileMode(0770))
-			if err != nil {
-				panic("Error creating output directory.")
-			}
-		}
-	}
-
-	body := r.Body
-
-	if utf8.Valid(r.Body) {
-		body = ReplaceContentUrls(r.Body)
-	}
-
-	ioutil.WriteFile(dest, body, 0644)
-
-	fmt.Printf("Saved: %s\n", dest)
-}
-
-// Returns true if home page redirects to login.
-func IsPrivate() (bool, error) {
-	client := http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	r, err := client.Get(CAKO_IO_URL)
-	if err != nil {
-		return false, err
-	}
-
-	loc, err := r.Location()
-	if err != nil {
-		return false, err
-	}
-
-	if r.StatusCode == http.StatusFound && strings.Contains(loc.Path, "private") {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// Lol
-func Login(collector *colly.Collector, password string) error {
-	loginUrl := CAKO_IO_URL + "private/"
-	expressCookieName := "express:sess"
-
-	client := http.Client{
-		/* Keep 302 response so we can extract express session cookie */
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	params := url.Values{}
-	params.Add("password", password)
-
-	req, err := http.NewRequest("POST", loginUrl, strings.NewReader(params.Encode()))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	r, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	setCookie := r.Header.Get("Set-Cookie")
-
-	if !strings.Contains(setCookie, expressCookieName) {
-		return fmt.Errorf("Login failed.")
-	}
-
-	/* The express session cookie does not work automatically with
-	the default cookie jar implementation.  This may be due to
-	the cookie name or the httponly flag. */
-
-	cookieStr := strings.Split(setCookie, ";")
-
-	cookie := &http.Cookie{
-		Name: expressCookieName,
-		Path: "/",
-	}
-
-	for _, c := range cookieStr {
-		strs := strings.Split(c, "=")
-		if strs[0] == expressCookieName {
-			cookie.Value = strs[1]
-		} else if strs[0] == "expires" {
-			t, err := time.Parse(time.RFC1123, strs[1])
-			if err != nil {
-				cookie.Expires = t
-			}
-		}
-	}
-
-	collector.SetCookies(CAKO_IO_URL, []*http.Cookie{cookie})
-
-	return nil
-}
+var mutex = sync.Mutex{}
 
 /*
 Crawl site starting from specified page and save files to outDir,
@@ -186,11 +49,10 @@ optionally using password authentication.
 
 If skipExisting, pages and assets already in outDir will be skipped.
 If skipAssets, CSS, JS, and media assets will not be saved.
+If checkLinks, check external links for availability without saving any files.
 */
-func Crawl(page string, outDir string, password string, skipExisting bool, skipAssets bool) {
-	postCnt := 0
-	skipCnt := 0
-
+func Crawl(page string, outDir string, password string, skipExisting bool,
+	skipAssets bool, checkLinks bool) {
 	const retries = 5
 	attempts := sync.Map{}
 
@@ -209,7 +71,7 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	}
 
 	c := colly.NewCollector(colly.Async(true), colly.MaxBodySize(100*1024*1024))
-	c.SetRequestTimeout(10*time.Minute)
+	c.SetRequestTimeout(10 * time.Minute)
 	c.Limit(&colly.LimitRule{DomainGlob: "*", Parallelism: 10})
 
 	private, err := IsPrivate()
@@ -220,8 +82,8 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	if private {
 		if password == "" {
 			flag.Usage()
-			fmt.Print("\n")
-			log.Fatal("Site is private and no password provided.\n")
+			fmt.Println("")
+			log.Fatal("Site is private and no password provided.")
 		} else {
 			err := Login(c, password)
 			if err != nil {
@@ -231,13 +93,16 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	}
 
 	c.OnResponse(func(r *colly.Response) {
-		OnResponse(r)
+		if !checkLinks {
+			SaveResponse(r)
+		}
 	})
 
 	c.OnError(func(r *colly.Response, e error) {
 		url := r.Request.URL.String()
 
-		log.Printf("Error fetching: %v, %v", url, e)
+		err := fmt.Errorf("Error fetching: %s: %d, %s", url, r.StatusCode, e)
+		log.Print(err)
 
 		if r.StatusCode != 200 {
 			v, _ := attempts.LoadOrStore(url, 0)
@@ -245,8 +110,10 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 			cnt := v.(int)
 			if cnt < retries {
 				attempts.Store(url, cnt+1)
-				log.Printf("Retry %v/%v: %v", cnt+1, retries, url)
+				log.Printf("Retry %d/%d: %s", cnt+1, retries, url)
 				r.Request.Retry()
+			} else {
+				log.Printf("%s: Max retries.", url)
 			}
 		}
 	})
@@ -266,11 +133,16 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 	}
 
 	c.OnHTML("#cako-post-feed .cako-post-link", func(e *colly.HTMLElement) {
+		mutex.Lock()
 		postCnt++
+		mutex.Unlock()
+
 		if !Exists(e.Attr("href")) || !skipExisting {
 			e.Request.Visit(e.Attr("href"))
 		} else {
+			mutex.Lock()
 			skipCnt++
+			mutex.Unlock()
 		}
 	})
 
@@ -309,10 +181,22 @@ func Crawl(page string, outDir string, password string, skipExisting bool, skipA
 		})
 	}
 
+	if checkLinks {
+		c.OnHTML("a", checkLink)
+	}
+
 	c.Visit(page)
 	c.Wait()
 
-	summary := fmt.Sprintf("%d posts found, %d saved", postCnt, postCnt-skipCnt)
+	if checkLinks {
+		fmt.Println()
+		log.Printf("%d links visited, %d errored", linkCnt, linkErrCnt)
+		for _, err := range linkErrs {
+			fmt.Println(err)
+		}
+	} else {
+		fmt.Println()
+		log.Printf("%d posts found, %d saved", postCnt, postCnt-skipCnt)
+	}
 
-	fmt.Println(summary)
 }
