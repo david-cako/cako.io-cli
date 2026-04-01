@@ -13,32 +13,11 @@ import (
 
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
 
-var STATIC_PATHS []string = []string{
-	"assets/css/global.css",
-	"assets/css/dark.css",
-	"assets/js/spin.js",
-	"assets/menu-outline.svg",
-	"assets/js/ionicons/index.esm.js",
-	"assets/js/ionicons/ionicons.esm.js",
-	"assets/js/ionicons/p-7a41fcdf.entry.js",
-	"assets/js/ionicons/p-BKJPfAGl.js",
-	"assets/js/ionicons/p-DQuL1Twl.js",
-	"assets/js/ionicons/p-Z3yp5Yym.js",
-	"assets/js/ionicons/svg/bulb-outline.svg",
-	"assets/js/ionicons/svg/close-circle-outline.svg",
-	"assets/js/ionicons/svg/menu-outline.svg",
-	"assets/js/ionicons/svg/search-outline.svg",
-	"assets/js/ionicons/svg/star-outline.svg",
-	"assets/fonts/Lato-Light.ttf",
-	"assets/apple-touch-icon.png",
-	"favicon.png",
-}
-
 var postCnt = 0
 var skipCnt = 0
+var postErrs = []error{}
 
 var linkCnt = 0
-var linkErrCnt = 0
 var linkErrs = []error{}
 
 var mutex = sync.Mutex{}
@@ -104,16 +83,30 @@ func Crawl(page string, outDir string, password string, skipExisting bool,
 		err := fmt.Errorf("Error fetching: %s: %d, %s", url, r.StatusCode, e)
 		log.Print(err)
 
+		mutex.Lock()
+		postErrs = append(postErrs, err)
+		mutex.Unlock()
+
 		if r.StatusCode != 200 {
 			v, _ := attempts.LoadOrStore(url, 0)
 
 			cnt := v.(int)
 			if cnt < retries {
 				attempts.Store(url, cnt+1)
-				log.Printf("Retry %d/%d: %s", cnt+1, retries, url)
+
+				err = fmt.Errorf("Retry %d/%d: %s", cnt+1, retries, url)
+				log.Print(err)
+				mutex.Lock()
+				postErrs = append(postErrs, err)
+				mutex.Unlock()
+
 				r.Request.Retry()
 			} else {
-				log.Printf("%s: Max retries.", url)
+				err = fmt.Errorf("%s: Max retries.", url)
+				log.Print(err)
+				mutex.Lock()
+				postErrs = append(postErrs, err)
+				mutex.Unlock()
 			}
 		}
 	})
@@ -133,16 +126,18 @@ func Crawl(page string, outDir string, password string, skipExisting bool,
 	}
 
 	c.OnHTML("#cako-post-feed .cako-post-link", func(e *colly.HTMLElement) {
-		mutex.Lock()
-		postCnt++
-		mutex.Unlock()
-
-		if !Exists(e.Attr("href")) || !skipExisting {
-			e.Request.Visit(e.Attr("href"))
-		} else {
+		if e.Request.URL.Path == "/all/" {
 			mutex.Lock()
-			skipCnt++
+			postCnt++
 			mutex.Unlock()
+
+			if !Exists(e.Attr("href")) || !skipExisting {
+				e.Request.Visit(e.Attr("href"))
+			} else {
+				mutex.Lock()
+				skipCnt++
+				mutex.Unlock()
+			}
 		}
 	})
 
@@ -151,32 +146,32 @@ func Crawl(page string, outDir string, password string, skipExisting bool,
 			rel := e.Attr("rel")
 			if rel == "stylesheet" {
 				if !Exists(e.Attr("href")) || !skipExisting {
-					e.Request.Visit(e.Attr(("href")))
+					e.Request.Visit(e.Attr("href"))
 				}
 			}
 		})
 
 		c.OnHTML("script", func(e *colly.HTMLElement) {
-			if !Exists(e.Attr(("src"))) || !skipExisting {
-				e.Request.Visit(e.Attr(("src")))
+			if !Exists(e.Attr("src")) || !skipExisting {
+				e.Request.Visit(e.Attr("src"))
 			}
 		})
 
 		c.OnHTML("img", func(e *colly.HTMLElement) {
-			if !Exists(e.Attr(("src"))) || !skipExisting {
-				e.Request.Visit(e.Attr(("src")))
+			if !Exists(e.Attr("src")) || !skipExisting {
+				e.Request.Visit(e.Attr("src"))
 			}
 		})
 
 		c.OnHTML("source", func(e *colly.HTMLElement) {
-			if !Exists(e.Attr(("src"))) || !skipExisting {
-				e.Request.Visit(e.Attr(("src")))
+			if !Exists(e.Attr("src")) || !skipExisting {
+				e.Request.Visit(e.Attr("src"))
 			}
 		})
 
 		c.OnHTML("audio", func(e *colly.HTMLElement) {
-			if !Exists(e.Attr(("src"))) || !skipExisting {
-				e.Request.Visit(e.Attr(("src")))
+			if !Exists(e.Attr("src")) || !skipExisting {
+				e.Request.Visit(e.Attr("src"))
 			}
 		})
 	}
@@ -190,13 +185,16 @@ func Crawl(page string, outDir string, password string, skipExisting bool,
 
 	if checkLinks {
 		fmt.Println()
-		log.Printf("%d links visited, %d errored", linkCnt, linkErrCnt)
+		log.Printf("%d links visited, %d errored", linkCnt, len(linkErrs))
 		for _, err := range linkErrs {
 			fmt.Println(err)
 		}
 	} else {
 		fmt.Println()
 		log.Printf("%d posts found, %d saved", postCnt, postCnt-skipCnt)
+		for _, err := range postErrs {
+			fmt.Println(err)
+		}
 	}
 
 }

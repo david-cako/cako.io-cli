@@ -11,6 +11,39 @@ import (
 	"github.com/gocolly/colly/v2"
 )
 
+var STATIC_PATHS []string = []string{
+	"assets/css/global.css",
+	"assets/css/dark.css",
+	"assets/css/private.css",
+	"assets/menu-outline.svg",
+	"assets/js/Api.js",
+	"assets/js/CakoApp.js",
+	"assets/js/Header.js",
+	"assets/js/Html.js",
+	"assets/js/InfiniteScroll.js",
+	"assets/js/Lights.js",
+	"assets/js/Menu.js",
+	"assets/js/Search.js",
+	"assets/js/lib/ionicons/index.esm.js",
+	"assets/js/lib/ionicons/ionicons.esm.js",
+	"assets/js/lib/ionicons/p-7a41fcdf.entry.js",
+	"assets/js/lib/ionicons/p-BKJPfAGl.js",
+	"assets/js/lib/ionicons/p-DQuL1Twl.js",
+	"assets/js/lib/ionicons/p-Z3yp5Yym.js",
+	"assets/js/lib/ionicons/svg/bulb-outline.svg",
+	"assets/js/lib/ionicons/svg/close-circle-outline.svg",
+	"assets/js/lib/ionicons/svg/menu-outline.svg",
+	"assets/js/lib/ionicons/svg/search-outline.svg",
+	"assets/js/lib/ionicons/svg/star-outline.svg",
+	"assets/js/lib/content-api.min.js.map",
+	"assets/fonts/Lato-Light.ttf",
+	"assets/apple-touch-icon.png",
+	"assets/favicon.ico",
+	"assets/cako_rounded-70.png",
+	"assets/cako_rounded.png",
+	"assets/site.webmanifest",
+}
+
 func SaveResponse(r *colly.Response) {
 	var dest string
 

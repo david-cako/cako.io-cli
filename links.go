@@ -116,10 +116,8 @@ func checkLink(e *colly.HTMLElement) {
 			log.Println(le)
 
 			mutex.Lock()
-			linkErrCnt++
-			mutex.Unlock()
-
 			linkErrs = append(linkErrs, le)
+			mutex.Unlock()
 		} else {
 			log.Printf("%s: %s%s: OK", e.Request.URL.String(), u.String(), altText)
 		}
